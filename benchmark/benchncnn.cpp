@@ -33,6 +33,8 @@
 #include "net.h"
 #include "gpu.h"
 
+#define BATCH_SIZE 1
+
 class DataReaderFromEmpty : public ncnn::DataReader
 {
 public:
@@ -47,7 +49,7 @@ public:
     }
 };
 
-static int g_warmup_loop_count = 8;
+static int g_warmup_loop_count = 10;
 static int g_loop_count = 4;
 static bool g_enable_cooling_down = true;
 
@@ -62,8 +64,22 @@ static ncnn::VkAllocator* g_staging_vkallocator = 0;
 
 void benchmark(const char* comment, const ncnn::Mat& _in, const ncnn::Option& opt)
 {
-    ncnn::Mat in = _in;
-    in.fill(0.01f);
+    // ncnn::Mat in = _in;
+    // in.fill(0.01f);
+    ncnn::Mat in[64];
+    // ncnn::Mat in_[64];
+    for (int i = 0; i < BATCH_SIZE; i++) {
+        in[i] = _in;
+        // in[i].fill(0.01f);
+        // in[i].fill((__fp16) 0.01f);
+
+        float16x8_t val = vdupq_n_f16(0.01f);
+        in[i].fill(val);
+
+        // in_[i] = ncnn::Mat(226, 226, 1, (size_t) 16u, 4);
+        // in[i].fill(val);
+        // ncnn::cast_float32_to_float16(in_[i], in[i]);
+    }
 
     g_blob_pool_allocator.clear();
     g_workspace_pool_allocator.clear();
@@ -126,7 +142,8 @@ void benchmark(const char* comment, const ncnn::Mat& _in, const ncnn::Option& op
     for (int i = 0; i < g_warmup_loop_count; i++)
     {
         ncnn::Extractor ex = net.create_extractor();
-        ex.input(input_names[0], in);
+        // ex.input(input_names[0], in);
+        ex.input(input_names[0], in[0]);
         ex.extract(output_names[0], out);
     }
 
@@ -137,14 +154,21 @@ void benchmark(const char* comment, const ncnn::Mat& _in, const ncnn::Option& op
     for (int i = 0; i < g_loop_count; i++)
     {
         double start = ncnn::get_current_time();
-
+        // fflush(stdout);
+        // printf("timer_started\n");
+        // fflush(stdout);
+        for (int j = 0; j < BATCH_SIZE; j++)
         {
             ncnn::Extractor ex = net.create_extractor();
-            ex.input(input_names[0], in);
+            // ex.input(input_names[0], in);
+            ex.input(input_names[0], in[j]);
             ex.extract(output_names[0], out);
         }
 
         double end = ncnn::get_current_time();
+        // fflush(stdout);
+        // printf("timer_ended\n");
+        // fflush(stdout);
 
         double time = end - start;
 
@@ -216,7 +240,7 @@ int main(int argc, char** argv)
 
     // default option
     ncnn::Option opt;
-    opt.lightmode = true;
+    opt.lightmode = false;
     opt.num_threads = num_threads;
     opt.blob_allocator = &g_blob_pool_allocator;
     opt.workspace_allocator = &g_workspace_pool_allocator;
@@ -227,16 +251,16 @@ int main(int argc, char** argv)
 #endif // NCNN_VULKAN
     opt.use_winograd_convolution = true;
     opt.use_sgemm_convolution = true;
-    opt.use_int8_inference = true;
-    opt.use_vulkan_compute = use_vulkan_compute;
+    opt.use_int8_inference = false;
+    opt.use_vulkan_compute = false;
     opt.use_fp16_packed = true;
     opt.use_fp16_storage = true;
     opt.use_fp16_arithmetic = true;
-    opt.use_int8_storage = true;
-    opt.use_int8_arithmetic = true;
+    opt.use_int8_storage = false;
+    opt.use_int8_arithmetic = false;
     opt.use_packing_layout = true;
-    opt.use_shader_pack8 = false;
-    opt.use_image_storage = false;
+    opt.use_shader_pack8 = true;
+    opt.use_image_storage = true;
 
     ncnn::set_cpu_powersave(powersave);
 
@@ -250,75 +274,85 @@ int main(int argc, char** argv)
     fprintf(stderr, "cooling_down = %d\n", (int)g_enable_cooling_down);
 
     // run
-    benchmark("squeezenet", ncnn::Mat(227, 227, 3), opt);
+    // benchmark("squeezenet", ncnn::Mat(227, 227, 3), opt);
 
-    benchmark("squeezenet_int8", ncnn::Mat(227, 227, 3), opt);
+    // benchmark("squeezenet_int8", ncnn::Mat(227, 227, 3), opt);
 
-    benchmark("mobilenet", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("mobilenet", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("mobilenet_int8", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("mobilenet_int8", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("mobilenet_v2", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("mobilenet_v2", ncnn::Mat(224, 224, 3), opt);
 
-    // benchmark("mobilenet_v2_int8", ncnn::Mat(224, 224, 3), opt);
+    // // benchmark("mobilenet_v2_int8", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("mobilenet_v3", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("mobilenet_v3", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("shufflenet", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("shufflenet", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("shufflenet_v2", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("shufflenet_v2", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("mnasnet", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("mnasnet", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("proxylessnasnet", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("proxylessnasnet", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("efficientnet_b0", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("efficientnet_b0", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("efficientnetv2_b0", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("efficientnetv2_b0", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("regnety_400m", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("regnety_400m", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("blazeface", ncnn::Mat(128, 128, 3), opt);
+    // benchmark("blazeface", ncnn::Mat(128, 128, 3), opt);
 
-    benchmark("googlenet", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("googlenet", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("googlenet_int8", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("googlenet_int8", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("resnet18", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("resnet18", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("resnet18_int8", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("resnet18_int8", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("alexnet", ncnn::Mat(227, 227, 3), opt);
+    // benchmark("alexnet", ncnn::Mat(227, 227, 3), opt);
 
-    benchmark("vgg16", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("vgg16_1", ncnn::Mat(226, 226, 64), opt);
 
-    benchmark("vgg16_int8", ncnn::Mat(224, 224, 3), opt);
+    benchmark("vgg16_1_2", ncnn::Mat(226, 226, 8, (size_t) 16u, 8), opt);
+    benchmark("vgg16_2_2", ncnn::Mat(112, 112, 16, (size_t) 16u, 8), opt);
+    benchmark("vgg16_3_2", ncnn::Mat(56, 56, 32, (size_t) 16u, 8), opt);
+    benchmark("vgg16_4_2", ncnn::Mat(28, 28, 64, (size_t) 16u, 8), opt);
+    benchmark("vgg16_5_2", ncnn::Mat(14, 14, 64, (size_t) 16u, 8), opt);
 
-    benchmark("resnet50", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("fusion_1_2", ncnn::Mat(640, 640, 8, (size_t) 16u, 8), opt);
+    // benchmark("fusion_2_2", ncnn::Mat(320, 320, 16, (size_t) 16u, 8), opt);
+    // benchmark("fusion_3_2", ncnn::Mat(160, 160, 32, (size_t) 16u, 8), opt);
+    // benchmark("fusion_4_2", ncnn::Mat(80, 80, 64, (size_t) 16u, 8), opt);
+    // benchmark("fusion_5_2", ncnn::Mat(40, 40, 128, (size_t) 16u, 8), opt);
 
-    benchmark("resnet50_int8", ncnn::Mat(224, 224, 3), opt);
+    // benchmark("vgg16_int8", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("squeezenet_ssd", ncnn::Mat(300, 300, 3), opt);
+    // benchmark("resnet50", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("squeezenet_ssd_int8", ncnn::Mat(300, 300, 3), opt);
+    // benchmark("resnet50_int8", ncnn::Mat(224, 224, 3), opt);
 
-    benchmark("mobilenet_ssd", ncnn::Mat(300, 300, 3), opt);
+    // benchmark("squeezenet_ssd", ncnn::Mat(300, 300, 3), opt);
 
-    benchmark("mobilenet_ssd_int8", ncnn::Mat(300, 300, 3), opt);
+    // benchmark("squeezenet_ssd_int8", ncnn::Mat(300, 300, 3), opt);
 
-    benchmark("mobilenet_yolo", ncnn::Mat(416, 416, 3), opt);
+    // benchmark("mobilenet_ssd", ncnn::Mat(300, 300, 3), opt);
 
-    benchmark("mobilenetv2_yolov3", ncnn::Mat(352, 352, 3), opt);
+    // benchmark("mobilenet_ssd_int8", ncnn::Mat(300, 300, 3), opt);
 
-    benchmark("yolov4-tiny", ncnn::Mat(416, 416, 3), opt);
+    // benchmark("mobilenet_yolo", ncnn::Mat(416, 416, 3), opt);
 
-    benchmark("nanodet_m", ncnn::Mat(320, 320, 3), opt);
+    // benchmark("mobilenetv2_yolov3", ncnn::Mat(352, 352, 3), opt);
 
-    benchmark("yolo-fastest-1.1", ncnn::Mat(320, 320, 3), opt);
+    // benchmark("yolov4-tiny", ncnn::Mat(416, 416, 3), opt);
 
-    benchmark("yolo-fastestv2", ncnn::Mat(352, 352, 3), opt);
+    // benchmark("nanodet_m", ncnn::Mat(320, 320, 3), opt);
 
-    benchmark("vision_transformer", ncnn::Mat(384, 384, 3), opt);
+    // benchmark("yolo-fastest-1.1", ncnn::Mat(320, 320, 3), opt);
+
+    // benchmark("yolo-fastestv2", ncnn::Mat(352, 352, 3), opt);
 
 #if NCNN_VULKAN
     delete g_blob_vkallocator;
