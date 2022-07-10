@@ -33,7 +33,7 @@
 #include "net.h"
 #include "gpu.h"
 
-#define BATCH_SIZE 1
+#define BATCH_SIZE 64
 
 class DataReaderFromEmpty : public ncnn::DataReader
 {
@@ -249,8 +249,8 @@ int main(int argc, char** argv)
     opt.workspace_vkallocator = g_blob_vkallocator;
     opt.staging_vkallocator = g_staging_vkallocator;
 #endif // NCNN_VULKAN
-    opt.use_winograd_convolution = true;
-    opt.use_sgemm_convolution = true;
+    opt.use_winograd_convolution = false;
+    opt.use_sgemm_convolution = false;
     opt.use_int8_inference = false;
     opt.use_vulkan_compute = false;
     opt.use_fp16_packed = true;
@@ -315,12 +315,34 @@ int main(int argc, char** argv)
     // benchmark("alexnet", ncnn::Mat(227, 227, 3), opt);
 
     // benchmark("vgg16_1", ncnn::Mat(226, 226, 64), opt);
+    for (int i = 0; i < 3; i++) {
+        if (i == 1) {
+            opt.use_sgemm_convolution = true;
+            printf("im2col\n");
+        } else if (i == 2) {
+            opt.use_winograd_convolution = true;
+            printf("winograd\n");
+        } else {
+            printf("direct\n");
+        }
+        benchmark("vgg16_1_2", ncnn::Mat(226, 226, 8, (size_t) 16u, 8), opt);
+        benchmark("vgg16_2_2", ncnn::Mat(112, 112, 16, (size_t) 16u, 8), opt);
+        benchmark("vgg16_3_2", ncnn::Mat(56, 56, 32, (size_t) 16u, 8), opt);
+        benchmark("vgg16_4_2", ncnn::Mat(28, 28, 64, (size_t) 16u, 8), opt);
+        benchmark("vgg16_5_2", ncnn::Mat(14, 14, 64, (size_t) 16u, 8), opt);
 
-    benchmark("vgg16_1_2", ncnn::Mat(226, 226, 8, (size_t) 16u, 8), opt);
-    benchmark("vgg16_2_2", ncnn::Mat(112, 112, 16, (size_t) 16u, 8), opt);
-    benchmark("vgg16_3_2", ncnn::Mat(56, 56, 32, (size_t) 16u, 8), opt);
-    benchmark("vgg16_4_2", ncnn::Mat(28, 28, 64, (size_t) 16u, 8), opt);
-    benchmark("vgg16_5_2", ncnn::Mat(14, 14, 64, (size_t) 16u, 8), opt);
+        benchmark("fusion_1_2", ncnn::Mat(640, 640, 8, (size_t) 16u, 8), opt);
+        benchmark("fusion_2_2", ncnn::Mat(320, 320, 16, (size_t) 16u, 8), opt);
+        benchmark("fusion_3_2", ncnn::Mat(160, 160, 32, (size_t) 16u, 8), opt);
+        benchmark("fusion_4_2", ncnn::Mat(80, 80, 64, (size_t) 16u, 8), opt);
+        benchmark("fusion_5_2", ncnn::Mat(40, 40, 128, (size_t) 16u, 8), opt);
+    }
+
+    // benchmark("vgg16_1_2", ncnn::Mat(226, 226, 8, (size_t) 16u, 8), opt);
+    // benchmark("vgg16_2_2", ncnn::Mat(112, 112, 16, (size_t) 16u, 8), opt);
+    // benchmark("vgg16_3_2", ncnn::Mat(56, 56, 32, (size_t) 16u, 8), opt);
+    // benchmark("vgg16_4_2", ncnn::Mat(28, 28, 64, (size_t) 16u, 8), opt);
+    // benchmark("vgg16_5_2", ncnn::Mat(14, 14, 64, (size_t) 16u, 8), opt);
 
     // benchmark("fusion_1_2", ncnn::Mat(640, 640, 8, (size_t) 16u, 8), opt);
     // benchmark("fusion_2_2", ncnn::Mat(320, 320, 16, (size_t) 16u, 8), opt);
