@@ -33,7 +33,7 @@
 #include "net.h"
 #include "gpu.h"
 
-#define BATCH_SIZE 64
+#define BATCH_SIZE 1
 
 class DataReaderFromEmpty : public ncnn::DataReader
 {
